@@ -136,6 +136,11 @@ export default function App() {
     return saved !== null ? saved === 'true' : false;
   });
 
+  const [logoSize, setLogoSize] = useState(() => {
+    const saved = localStorage.getItem('label_logo_size');
+    return saved ? parseFloat(saved) : 0.4;
+  });
+
   const [previewScale, setPreviewScale] = useState(1.0);
 
   // --- Effects ---
@@ -190,6 +195,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('label_show_logo', showLogo.toString());
   }, [showLogo]);
+
+  useEffect(() => {
+    localStorage.setItem('label_logo_size', logoSize.toString());
+  }, [logoSize]);
 
   // --- Direct Print Handler ---
   const printLabels = () => {
@@ -371,8 +380,8 @@ export default function App() {
         if (logoUrl.startsWith('data:image/jpeg') || logoUrl.startsWith('data:image/jpg')) {
           format = 'JPEG';
         }
-        const logoH = 0.35;
-        const logoW = 1.0;
+        const logoH = logoSize;
+        const logoW = logoSize * 2.5;
         const logoX = 4.0 - labelMargin - logoW;
         const logoY = 3.0 + labelMargin + 0.03;
         try {
@@ -704,7 +713,7 @@ export default function App() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', width: '100%' }}>
                                   <div style={{ fontWeight: 'bold', fontSize: `${fromFontSize + 2}pt` }}>FROM:</div>
                                   {showLogo && logoUrl && (
-                                    <img src={logoUrl} alt="Logo" style={{ height: '0.4in', maxWidth: '1.2in', objectFit: 'contain' }} />
+                                    <img src={logoUrl} alt="Logo" style={{ height: `${logoSize}in`, maxWidth: `${logoSize * 3}in`, objectFit: 'contain' }} />
                                   )}
                                 </div>
                                 <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-sans)' }}>{fromAddress}</div>
@@ -902,19 +911,36 @@ export default function App() {
                       />
 
                       {logoUrl && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem', backgroundColor: 'var(--bg-card)', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                          <img src={logoUrl} alt="Logo preview" style={{ height: '40px', maxWidth: '100px', objectFit: 'contain' }} />
-                          <button 
-                            type="button" 
-                            className="btn btn-danger" 
-                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                            onClick={() => {
-                              setLogoUrl(null);
-                            }}
-                          >
-                            Remove Logo
-                          </button>
-                        </div>
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem', backgroundColor: 'var(--bg-card)', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                            <img src={logoUrl} alt="Logo preview" style={{ height: '40px', maxWidth: '100px', objectFit: 'contain' }} />
+                            <button 
+                              type="button" 
+                              className="btn btn-danger" 
+                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                              onClick={() => {
+                                setLogoUrl(null);
+                              }}
+                            >
+                              Remove Logo
+                            </button>
+                          </div>
+                          
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>
+                              Logo Size (Height: {logoSize} in)
+                            </label>
+                            <input 
+                              type="range" 
+                              min="0.25" 
+                              max="0.75" 
+                              step="0.05"
+                              value={logoSize} 
+                              onChange={(e) => setLogoSize(parseFloat(e.target.value))}
+                              className="slider"
+                            />
+                          </div>
+                        </>
                       )}
                     </div>
                   )}
@@ -1027,7 +1053,7 @@ export default function App() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
                         <strong style={{ fontSize: '11px' }}>FROM:</strong>
                         {showLogo && logoUrl && (
-                          <img src={logoUrl} alt="Logo preview" style={{ height: '18px', maxWidth: '50px', objectFit: 'contain' }} />
+                          <img src={logoUrl} alt="Logo preview" style={{ height: `${logoSize * 40}px`, maxWidth: `${logoSize * 100}px`, objectFit: 'contain' }} />
                         )}
                       </div>
                       <span style={{ opacity: 0.7 }}>Your Company</span>
@@ -1099,7 +1125,7 @@ export default function App() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', width: '100%' }}>
                   <span className="pl-section-title" style={{ fontSize: fromTitlePt, margin: 0 }}>FROM:</span>
                   {showLogo && logoUrl && (
-                    <img src={logoUrl} alt="Logo" style={{ height: '0.4in', maxWidth: '1.2in', objectFit: 'contain' }} />
+                    <img src={logoUrl} alt="Logo" style={{ height: `${logoSize}in`, maxWidth: `${logoSize * 3}in`, objectFit: 'contain' }} />
                   )}
                 </div>
                 <div className="pl-text" style={{ fontSize: fromFontPt, lineHeight: 1.35, fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap' }}>{(fromAddress || '').trim()}</div>
