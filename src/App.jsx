@@ -127,6 +127,15 @@ export default function App() {
     return saved !== null ? saved : '#000000';
   });
 
+  const [logoUrl, setLogoUrl] = useState(() => {
+    return localStorage.getItem('label_logo_url') || null;
+  });
+
+  const [showLogo, setShowLogo] = useState(() => {
+    const saved = localStorage.getItem('label_show_logo');
+    return saved !== null ? saved === 'true' : false;
+  });
+
   const [previewScale, setPreviewScale] = useState(1.0);
 
   // --- Effects ---
@@ -169,6 +178,18 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('label_border_color', borderColor);
   }, [borderColor]);
+
+  useEffect(() => {
+    if (logoUrl) {
+      localStorage.setItem('label_logo_url', logoUrl);
+    } else {
+      localStorage.removeItem('label_logo_url');
+    }
+  }, [logoUrl]);
+
+  useEffect(() => {
+    localStorage.setItem('label_show_logo', showLogo.toString());
+  }, [showLogo]);
 
   // --- Direct Print Handler ---
   const printLabels = () => {
@@ -343,6 +364,23 @@ export default function App() {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(fromFontSize + 2);
       doc.text('FROM:', labelMargin, fromHeaderY);
+
+      // Draw logo in PDF if enabled
+      if (showLogo && logoUrl) {
+        let format = 'PNG';
+        if (logoUrl.startsWith('data:image/jpeg') || logoUrl.startsWith('data:image/jpg')) {
+          format = 'JPEG';
+        }
+        const logoH = 0.35;
+        const logoW = 1.0;
+        const logoX = 4.0 - labelMargin - logoW;
+        const logoY = 3.0 + labelMargin + 0.03;
+        try {
+          doc.addImage(logoUrl, format, logoX, logoY, logoW, logoH);
+        } catch (e) {
+          console.error("Failed to add image to PDF", e);
+        }
+      }
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(fromFontSize);
@@ -663,7 +701,12 @@ export default function App() {
                               
                               {/* FROM Section (Bottom 3 inches) */}
                               <div style={fromSectionStyle}>
-                                <div style={{ fontWeight: 'bold', fontSize: `${fromFontSize + 2}pt`, marginBottom: '4px' }}>FROM:</div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', width: '100%' }}>
+                                  <div style={{ fontWeight: 'bold', fontSize: `${fromFontSize + 2}pt` }}>FROM:</div>
+                                  {showLogo && logoUrl && (
+                                    <img src={logoUrl} alt="Logo" style={{ height: '0.4in', maxWidth: '1.2in', objectFit: 'contain' }} />
+                                  )}
+                                </div>
                                 <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-sans)' }}>{fromAddress}</div>
                                 
                                 {/* Mock Barcode inside Bottom half */}
@@ -818,6 +861,66 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Logo Settings Section */}
+              <div className="panel-section" style={{ marginTop: '1.25rem' }}>
+                <h2 className="section-title">
+                  <Sparkles size={18} className="text-secondary" />
+                  Logo Settings
+                </h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textTransform: 'none', fontSize: '0.85rem' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={showLogo} 
+                      onChange={(e) => setShowLogo(e.target.checked)}
+                      style={{ width: 'auto', cursor: 'pointer' }}
+                    />
+                    Enable logo on labels
+                  </label>
+
+                  {showLogo && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', border: '1px dashed var(--border-color)', borderRadius: '8px', padding: '1rem', backgroundColor: 'var(--bg-app)' }}>
+                      <label style={{ textTransform: 'none', fontSize: '0.85rem' }}>Upload Shop/Store Logo (PNG or JPEG)</label>
+                      <input 
+                        type="file" 
+                        accept="image/png, image/jpeg, image/jpg" 
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            if (file.size > 1024 * 1024) {
+                              alert("Please upload a logo smaller than 1MB to ensure browser storage capacity.");
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setLogoUrl(reader.result);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        style={{ fontSize: '0.8rem' }}
+                      />
+
+                      {logoUrl && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem', backgroundColor: 'var(--bg-card)', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                          <img src={logoUrl} alt="Logo preview" style={{ height: '40px', maxWidth: '100px', objectFit: 'contain' }} />
+                          <button 
+                            type="button" 
+                            className="btn btn-danger" 
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                            onClick={() => {
+                              setLogoUrl(null);
+                            }}
+                          >
+                            Remove Logo
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Border Settings Section */}
               <div className="panel-section" style={{ marginTop: '1.25rem' }}>
                 <h2 className="section-title">
@@ -920,8 +1023,13 @@ export default function App() {
                     <div style={{
                       borderTop: dividerStyle === 'none' ? 'none' : `2px ${dividerStyle} ${borderColor}`,
                     }} />
-                    <div style={{ flex: 1, padding: '8px', fontSize: '10px', color: '#222', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <strong style={{ fontSize: '11px' }}>FROM:</strong>
+                    <div style={{ flex: 1, padding: '8px', fontSize: '10px', color: '#222', display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                        <strong style={{ fontSize: '11px' }}>FROM:</strong>
+                        {showLogo && logoUrl && (
+                          <img src={logoUrl} alt="Logo preview" style={{ height: '18px', maxWidth: '50px', objectFit: 'contain' }} />
+                        )}
+                      </div>
                       <span style={{ opacity: 0.7 }}>Your Company</span>
                       <span style={{ opacity: 0.7 }}>Your Address</span>
                     </div>
@@ -988,7 +1096,12 @@ export default function App() {
                 className="pl-from"
                 style={{ padding: marginIn, paddingBottom: showBarcode ? '0.85in' : marginIn }}
               >
-                <span className="pl-section-title" style={{ fontSize: fromTitlePt }}>FROM:</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', width: '100%' }}>
+                  <span className="pl-section-title" style={{ fontSize: fromTitlePt, margin: 0 }}>FROM:</span>
+                  {showLogo && logoUrl && (
+                    <img src={logoUrl} alt="Logo" style={{ height: '0.4in', maxWidth: '1.2in', objectFit: 'contain' }} />
+                  )}
+                </div>
                 <div className="pl-text" style={{ fontSize: fromFontPt, lineHeight: 1.35, fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap' }}>{(fromAddress || '').trim()}</div>
 
                 {showBarcode && (
