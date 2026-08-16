@@ -15,7 +15,13 @@ import {
   Type,
   Ruler,
   Maximize2,
-  Printer
+  Printer,
+  Clock,
+  Search,
+  RotateCcw,
+  Calendar,
+  X,
+  Filter
 } from 'lucide-react';
 
 const DEFAULT_FROM = `From,
@@ -77,12 +83,38 @@ export default function App() {
   });
 
   const [recipients, setRecipients] = useState(() => {
-    const saved = localStorage.getItem('label_recipients_v2');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('label_recipients_v2');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error('Error parsing label_recipients_v2:', e);
+      return [];
+    }
   });
 
-  const [bulkInput, setBulkInput] = useState('');
-  const [activeTab, setActiveTab] = useState('cards'); // 'cards' | 'print' | 'settings'
+  const [bulkInput, setBulkInput] = useState(() => {
+    try {
+      return localStorage.getItem('label_bulk_input') || '';
+    } catch (e) {
+      return '';
+    }
+  });
+  const [activeTab, setActiveTab] = useState('cards'); // 'cards' | 'print' | 'settings' | 'history'
+
+  // --- Address History ---
+  const [addressHistory, setAddressHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('label_address_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error('Error parsing label_address_history:', e);
+      return [];
+    }
+  });
+  const [historySearch, setHistorySearch] = useState('');
+  const [historySearchActive, setHistorySearchActive] = useState('');
+  const [historyDateFrom, setHistoryDateFrom] = useState('');
+  const [historyDateTo, setHistoryDateTo] = useState('');
   const [parseSuccessMsg, setParseSuccessMsg] = useState('');
 
   // settings state
@@ -149,8 +181,53 @@ export default function App() {
   }, [fromAddress]);
 
   useEffect(() => {
-    localStorage.setItem('label_recipients_v2', JSON.stringify(recipients));
+    try {
+      localStorage.setItem('label_recipients_v2', JSON.stringify(recipients));
+    } catch (e) {
+      console.error('Error saving label_recipients_v2:', e);
+    }
+
+    // Auto-save manually edited/added valid recipient addresses to History
+    if (recipients.length > 0) {
+      const validAddresses = recipients
+        .map(r => r.text.trim())
+        .filter(text => {
+          if (!text) return false;
+          if (text === 'To,' || text === 'To,\n' || text.length < 15) return false;
+          return true;
+        });
+
+      if (validAddresses.length > 0) {
+        setAddressHistory(prevHistory => {
+          let updated = false;
+          const newEntries = [...prevHistory];
+          const now = new Date().toISOString();
+
+          validAddresses.forEach(addr => {
+            const exists = prevHistory.some(h => h.text.toLowerCase() === addr.toLowerCase());
+            if (!exists) {
+              newEntries.unshift({
+                id: Math.random().toString(36).substring(2, 9),
+                text: addr,
+                addedAt: now
+              });
+              updated = true;
+            }
+          });
+
+          return updated ? newEntries : prevHistory;
+        });
+      }
+    }
   }, [recipients]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('label_bulk_input', bulkInput);
+    } catch (e) {
+      console.error('Error saving label_bulk_input:', e);
+    }
+  }, [bulkInput]);
 
   useEffect(() => {
     localStorage.setItem('label_to_font_size', toFontSize.toString());
@@ -199,6 +276,44 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('label_logo_size', logoSize.toString());
   }, [logoSize]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('label_address_history', JSON.stringify(addressHistory));
+    } catch (e) {
+      console.error('Error saving label_address_history:', e);
+    }
+  }, [addressHistory]);
+
+  // --- History Helpers ---
+  const addToHistory = (addressTexts) => {
+    const now = new Date().toISOString();
+    const newEntries = addressTexts.map(text => ({
+      id: Math.random().toString(36).substring(2, 9),
+      text: text.trim(),
+      addedAt: now
+    }));
+    setAddressHistory(prev => [...newEntries, ...prev]);
+  };
+
+  const removeFromHistory = (histId) => {
+    setAddressHistory(prev => prev.filter(h => h.id !== histId));
+  };
+
+  const clearAllHistory = () => {
+    if (window.confirm('Are you sure you want to clear your entire address history?')) {
+      setAddressHistory([]);
+      localStorage.removeItem('label_address_history');
+    }
+  };
+
+  const reAddFromHistory = (historyEntry) => {
+    const newCard = {
+      id: Math.random().toString(36).substring(2, 9),
+      text: historyEntry.text
+    };
+    setRecipients(prev => [...prev, newCard]);
+  };
 
   // --- Direct Print Handler ---
   const printLabels = () => {
@@ -277,6 +392,7 @@ export default function App() {
 
     if (parsedCards.length > 0) {
       setRecipients(prev => [...prev, ...parsedCards]);
+      addToHistory(parsedCards.map(c => c.text));
       setBulkInput('');
       setParseSuccessMsg(`Successfully imported ${parsedCards.length} label(s) matching your pasted format!`);
       setTimeout(() => setParseSuccessMsg(''), 4000);
@@ -556,6 +672,13 @@ export default function App() {
               >
                 <Settings size={16} />
                 Settings
+              </button>
+              <button 
+                className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`}
+                onClick={() => setActiveTab('history')}
+              >
+                <Clock size={16} />
+                History{addressHistory.length > 0 ? ` (${addressHistory.length})` : ''}
               </button>
             </div>
             <div>
@@ -1061,6 +1184,254 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: ADDRESS HISTORY */}
+          {activeTab === 'history' && (
+            <div className="history-panel">
+              <div className="panel-section">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <h2 className="section-title" style={{ marginBottom: 0 }}>
+                    <Clock size={18} className="text-secondary" />
+                    Address History
+                  </h2>
+                  {addressHistory.length > 0 && (
+                    <button className="btn btn-danger" style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }} onClick={clearAllHistory}>
+                      <Trash2 size={14} />
+                      Clear All
+                    </button>
+                  )}
+                </div>
+
+                {/* Search + Date Filter Controls */}
+                {addressHistory.length > 0 && (
+                  <div className="history-filters">
+                    {/* Name Search Bar with Button */}
+                    <div className="history-search-bar">
+                      <Search size={16} className="history-search-icon" />
+                      <input
+                        type="text"
+                        placeholder="Search by name or address..."
+                        value={historySearch}
+                        onChange={(e) => setHistorySearch(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') setHistorySearchActive(historySearch); }}
+                        className="history-search-input"
+                      />
+                      <button
+                        className="history-search-btn"
+                        onClick={() => setHistorySearchActive(historySearch)}
+                        title="Search"
+                      >
+                        <Search size={15} />
+                        Search
+                      </button>
+                      {historySearchActive && (
+                        <button
+                          className="history-clear-search-btn"
+                          onClick={() => { setHistorySearch(''); setHistorySearchActive(''); }}
+                          title="Clear search"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Calendar Date Range Filter */}
+                    <div className="history-date-filters">
+                      <div className="history-date-filter-icon">
+                        <Calendar size={16} />
+                        <span>Filter by Date</span>
+                      </div>
+                      <div className="history-date-inputs">
+                        <div className="history-date-field">
+                          <label className="history-date-label-text">From</label>
+                          <input
+                            type="date"
+                            value={historyDateFrom}
+                            onChange={(e) => setHistoryDateFrom(e.target.value)}
+                            className="history-date-input"
+                          />
+                        </div>
+                        <div className="history-date-field">
+                          <label className="history-date-label-text">To</label>
+                          <input
+                            type="date"
+                            value={historyDateTo}
+                            onChange={(e) => setHistoryDateTo(e.target.value)}
+                            className="history-date-input"
+                          />
+                        </div>
+                        {(historyDateFrom || historyDateTo) && (
+                          <button
+                            className="history-clear-dates-btn"
+                            onClick={() => { setHistoryDateFrom(''); setHistoryDateTo(''); }}
+                            title="Clear date filter"
+                          >
+                            <X size={14} />
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Active filters indicator */}
+                    {(historySearchActive || historyDateFrom || historyDateTo) && (
+                      <div className="history-active-filters">
+                        <Filter size={13} />
+                        <span>Active filters:</span>
+                        {historySearchActive && (
+                          <span className="history-filter-tag">
+                            Name: "{historySearchActive}"
+                            <button onClick={() => { setHistorySearch(''); setHistorySearchActive(''); }}><X size={11} /></button>
+                          </span>
+                        )}
+                        {historyDateFrom && (
+                          <span className="history-filter-tag">
+                            From: {new Date(historyDateFrom + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            <button onClick={() => setHistoryDateFrom('')}><X size={11} /></button>
+                          </span>
+                        )}
+                        {historyDateTo && (
+                          <span className="history-filter-tag">
+                            To: {new Date(historyDateTo + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            <button onClick={() => setHistoryDateTo('')}><X size={11} /></button>
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {addressHistory.length === 0 ? (
+                  <div className="empty-state" style={{ padding: '3rem 2rem' }}>
+                    <Clock size={48} className="empty-state-icon" />
+                    <h3 className="empty-state-title">No History Yet</h3>
+                    <p>Addresses you parse or add will appear here for quick re-use.</p>
+                  </div>
+                ) : (
+                  <div className="history-timeline">
+                    {(() => {
+                      // Apply search filter
+                      let filtered = addressHistory;
+
+                      if (historySearchActive) {
+                        filtered = filtered.filter(h =>
+                          h.text.toLowerCase().includes(historySearchActive.toLowerCase())
+                        );
+                      }
+
+                      // Apply date range filter
+                      if (historyDateFrom) {
+                        const fromDate = new Date(historyDateFrom + 'T00:00:00');
+                        filtered = filtered.filter(h => new Date(h.addedAt) >= fromDate);
+                      }
+                      if (historyDateTo) {
+                        const toDate = new Date(historyDateTo + 'T23:59:59');
+                        filtered = filtered.filter(h => new Date(h.addedAt) <= toDate);
+                      }
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="history-no-results">
+                            <Search size={36} style={{ opacity: 0.3 }} />
+                            <h4>No matching addresses found</h4>
+                            <p>
+                              {historySearchActive && <>No results for "<strong>{historySearchActive}</strong>". </>}
+                              {(historyDateFrom || historyDateTo) && <>Try adjusting your date range.</>}
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      // Results count
+                      const resultCount = filtered.length;
+
+                      // Group by date
+                      const groups = {};
+                      filtered.forEach(h => {
+                        const dateKey = new Date(h.addedAt).toLocaleDateString('en-IN', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        });
+                        if (!groups[dateKey]) groups[dateKey] = [];
+                        groups[dateKey].push(h);
+                      });
+
+                      return (
+                        <>
+                          <div className="history-results-count">
+                            Showing <strong>{resultCount}</strong> address{resultCount !== 1 ? 'es' : ''}
+                            {(historySearchActive || historyDateFrom || historyDateTo) ? ' (filtered)' : ''}
+                          </div>
+                          {Object.entries(groups).map(([dateLabel, entries]) => (
+                            <div key={dateLabel} className="history-date-group">
+                              <div className="history-date-label">
+                                <Calendar size={13} />
+                                {dateLabel}
+                                <span className="history-date-count">{entries.length}</span>
+                              </div>
+                              {entries.map((entry) => {
+                                const addedDate = new Date(entry.addedAt);
+                                const time = addedDate.toLocaleTimeString('en-IN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                });
+                                const fullDate = addedDate.toLocaleDateString('en-IN', {
+                                  weekday: 'short',
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric'
+                                });
+                                return (
+                                  <div key={entry.id} className="history-entry">
+                                    <div className="history-entry-dot" />
+                                    <div className="history-entry-content">
+                                      <div className="history-entry-meta">
+                                        <div className="history-entry-date-info">
+                                          <span className="history-entry-time">
+                                            <Clock size={11} />
+                                            {time}
+                                          </span>
+                                          <span className="history-entry-full-date">
+                                            <Calendar size={11} />
+                                            Uploaded: {fullDate}
+                                          </span>
+                                        </div>
+                                        <div className="history-entry-actions">
+                                          <button
+                                            className="btn btn-primary"
+                                            style={{ padding: '0.25rem 0.55rem', fontSize: '0.72rem' }}
+                                            onClick={() => reAddFromHistory(entry)}
+                                            title="Re-add as label"
+                                          >
+                                            <RotateCcw size={12} />
+                                            Re-add
+                                          </button>
+                                          <button
+                                            className="btn btn-danger btn-icon-only"
+                                            style={{ padding: '0.25rem' }}
+                                            onClick={() => removeFromHistory(entry.id)}
+                                            title="Remove from history"
+                                          >
+                                            <Trash2 size={12} />
+                                          </button>
+                                        </div>
+                                      </div>
+                                      <pre className="history-entry-text">{entry.text}</pre>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ))}
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
           )}
