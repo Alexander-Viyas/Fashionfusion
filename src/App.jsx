@@ -86,6 +86,25 @@ street Vyasarpadi chennai-600039
 Ph(8608170160/8610026020)
 +91 86081 70160`;
 
+const WA_HEADER_REGEX = /^\s*(\(?)\s*(?:\[\d{1,4}[/.-]\d{1,4}(?:[/.-]\d{2,4})?,\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AP]M|[ap]m)?\]|\d{1,4}[/.-]\d{1,4}(?:[/.-]\d{2,4})?,\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AP]M|[ap]m)?\s*-\s*)\s*[^:\n]+:\s*/i;
+
+const isWhatsAppHeader = (line) => {
+  return WA_HEADER_REGEX.test(line);
+};
+
+const stripWhatsAppHeader = (line) => {
+  if (!line) return '';
+  const match = line.match(WA_HEADER_REGEX);
+  if (!match) return line;
+
+  const hasLeadingParen = match[1] === '(' || match[0].includes('(');
+  let cleaned = line.replace(WA_HEADER_REGEX, '');
+  if (hasLeadingParen && cleaned.endsWith(')')) {
+    cleaned = cleaned.slice(0, -1);
+  }
+  return cleaned.trim();
+};
+
 export default function App() {
   // --- State ---
   const [fromAddress, setFromAddress] = useState(() => {
@@ -402,23 +421,53 @@ export default function App() {
     if (!bulkInput.trim()) return;
 
     let blocks = [];
+    const rawLines = bulkInput.split(/\r?\n/);
 
+    // Check if input contains WhatsApp message headers
+    const hasWAHeaders = rawLines.some(line => isWhatsAppHeader(line));
+
+    if (hasWAHeaders) {
+      let currentBlock = [];
+      rawLines.forEach((line) => {
+        if (isWhatsAppHeader(line)) {
+          if (currentBlock.length > 0) {
+            const blockText = currentBlock.join('\n').trim();
+            if (blockText) blocks.push(blockText);
+            currentBlock = [];
+          }
+          const cleanedLine = stripWhatsAppHeader(line);
+          if (cleanedLine) {
+            currentBlock.push(cleanedLine);
+          }
+        } else {
+          // Normal line inside a block
+          const trimmed = line.trim();
+          if (trimmed || currentBlock.length > 0) { // Keep empty lines inside block, but only if block has started
+            currentBlock.push(line);
+          }
+        }
+      });
+      if (currentBlock.length > 0) {
+        const blockText = currentBlock.join('\n').trim();
+        if (blockText) blocks.push(blockText);
+      }
+    } 
     // Case A: Separator line '---' is used
-    if (bulkInput.includes('---')) {
-      blocks = bulkInput.split(/(?:\r?\n\s*---\s*\r?\n)/).map(b => b.trim()).filter(Boolean);
+    else if (bulkInput.includes('---')) {
+      blocks = bulkInput.split(/(?:\r?\n\s*---\s*\r?\n)/)
+        .map(b => b.split(/\r?\n/).map(stripWhatsAppHeader).join('\n').trim())
+        .filter(Boolean);
     } 
     // Case B: Contains multiple lines starting with "To"
     else if ((bulkInput.match(/^to\b/im) || []).length > 1) {
-      const lines = bulkInput.split(/\r?\n/);
       let currentBlock = [];
-      lines.forEach((line) => {
+      rawLines.forEach((line) => {
         const trimmed = line.trim();
-        // If we see a line starting with "To" (case insensitive) and already have lines, it's a new block
         if (/^to\b/i.test(trimmed) && currentBlock.length > 0) {
           blocks.push(currentBlock.join('\n').trim());
           currentBlock = [];
         }
-        currentBlock.push(line);
+        currentBlock.push(stripWhatsAppHeader(line));
       });
       if (currentBlock.length > 0) {
         blocks.push(currentBlock.join('\n').trim());
@@ -426,8 +475,13 @@ export default function App() {
     } 
     // Case C: Fallback to standard double blank line split
     else {
-      blocks = bulkInput.split(/(?:\r?\n\s*\r?\n)/).map(b => b.trim()).filter(Boolean);
+      blocks = bulkInput.split(/(?:\r?\n\s*\r?\n)/)
+        .map(b => b.split(/\r?\n/).map(stripWhatsAppHeader).join('\n').trim())
+        .filter(Boolean);
     }
+
+    // Clean any empty lines at start/end of each block
+    blocks = blocks.map(b => b.trim()).filter(Boolean);
 
     const parsedCards = blocks.map(block => ({
       id: Math.random().toString(36).substring(2, 9),
@@ -659,7 +713,7 @@ export default function App() {
               Bulk Address Input
             </h2>
             <p className="help-text" style={{ marginBottom: '0.75rem' }}>
-              Paste raw addresses exactly as you copied them. Separate each label block with <code>---</code> or a blank line.
+              Paste raw addresses exactly as you copied them. Auto-splits <b>WhatsApp messages</b>, <code>---</code> dividers, or blank lines!
             </p>
             <textarea
               className="bulk-textarea"
@@ -695,7 +749,7 @@ export default function App() {
               </h3>
               <p className="help-text">
                 - Auto-splits bulk address lists cleanly into individual label cards.<br/>
-                - Automatically highlights the "To," and "From," titles on the output PDF.<br/>
+                - Instantly strips <b>WhatsApp timestamps and headers</b> <code>[10/1, 10:37 PM] Name:</code> automatically.<br/>
                 - Preserves all formatting, phone numbers, and landmarks precisely.
               </p>
             </div>
