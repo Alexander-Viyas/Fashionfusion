@@ -1407,3 +1407,71 @@ textarea {
     color: #000 !important;
   }
 }
+
+/* Parcel Preference Controls */
+.parcel-toggle-group {
+  display: inline-flex;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+
+.parcel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.parcel-btn:hover {
+  color: var(--text-primary);
+}
+
+.parcel-btn.active-pc {
+  background-color: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.parcel-btn.active-post {
+  background-color: #d97706;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-pc {
+  background-color: var(--primary-light);
+  color: var(--primary);
+}
+
+.badge-post {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+@media (prefers-color-scheme: dark) {
+  .badge-post {
+    background-color: rgba(217, 119, 6, 0.2);
+    color: #fcd34d;
+  }
+}

@@ -21,11 +21,22 @@ import {
   RotateCcw,
   Calendar,
   X,
-  Filter
+  Filter,
+  Truck,
+  Mail,
+  Package
 } from 'lucide-react';
 
 const DEFAULT_FROM = `From,
 Aaral
+8940436789
+No 12 pandian street
+Cit Nagar east
+Nandanam
+Chennai _600035`;
+
+const DEFAULT_POST_FROM = `From,
+Aaral (Post)
 8940436789
 No 12 pandian street
 Cit Nagar east
@@ -80,6 +91,16 @@ export default function App() {
   const [fromAddress, setFromAddress] = useState(() => {
     const saved = localStorage.getItem('label_from_address_v2');
     return saved !== null ? saved : DEFAULT_FROM;
+  });
+
+  const [postFromAddress, setPostFromAddress] = useState(() => {
+    const saved = localStorage.getItem('label_post_from_address');
+    return saved !== null ? saved : DEFAULT_POST_FROM;
+  });
+
+  const [contractorId, setContractorId] = useState(() => {
+    const saved = localStorage.getItem('label_contractor_id');
+    return saved !== null ? saved : 'Contractor ID: 123456';
   });
 
   const [recipients, setRecipients] = useState(() => {
@@ -179,6 +200,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('label_from_address_v2', fromAddress);
   }, [fromAddress]);
+
+  useEffect(() => {
+    localStorage.setItem('label_post_from_address', postFromAddress);
+  }, [postFromAddress]);
+
+  useEffect(() => {
+    localStorage.setItem('label_contractor_id', contractorId);
+  }, [contractorId]);
 
   useEffect(() => {
     try {
@@ -310,7 +339,8 @@ export default function App() {
   const reAddFromHistory = (historyEntry) => {
     const newCard = {
       id: Math.random().toString(36).substring(2, 9),
-      text: historyEntry.text
+      text: historyEntry.text,
+      type: 'PC'
     };
     setRecipients(prev => [...prev, newCard]);
   };
@@ -334,6 +364,19 @@ export default function App() {
     }));
   };
 
+  const handleRecipientTypeChange = (id, type) => {
+    setRecipients(prev => prev.map(item => {
+      if (item.id === id) {
+        return { ...item, type };
+      }
+      return item;
+    }));
+  };
+
+  const setAllRecipientsType = (type) => {
+    setRecipients(prev => prev.map(item => ({ ...item, type })));
+  };
+
   const deleteRecipient = (id) => {
     setRecipients(prev => prev.filter(item => item.id !== id));
   };
@@ -341,7 +384,8 @@ export default function App() {
   const addEmptyRecipient = () => {
     const newCard = {
       id: Math.random().toString(36).substring(2, 9),
-      text: 'To,\n'
+      text: 'To,\n',
+      type: 'PC'
     };
     setRecipients(prev => [...prev, newCard]);
   };
@@ -387,7 +431,8 @@ export default function App() {
 
     const parsedCards = blocks.map(block => ({
       id: Math.random().toString(36).substring(2, 9),
-      text: block
+      text: block,
+      type: 'PC'
     }));
 
     if (parsedCards.length > 0) {
@@ -417,6 +462,9 @@ export default function App() {
     });
 
     recipients.forEach((rec, index) => {
+      const isPost = rec.type === 'Post';
+      const effectiveFrom = isPost ? postFromAddress : fromAddress;
+
       // Add page for subsequent labels
       if (index > 0) {
         doc.addPage([4, 6]);
@@ -470,6 +518,13 @@ export default function App() {
       doc.setTextColor(0, 0, 0);
       doc.text('TO:', labelMargin, toHeaderY);
 
+      // Render Contractor ID on right top of TO section if Post option is selected
+      if (isPost && contractorId && contractorId.trim()) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(toFontSize);
+        doc.text(contractorId.trim(), 4.0 - labelMargin, toHeaderY, { align: 'right' });
+      }
+
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(toFontSize);
       const wrappedToLines = doc.splitTextToSize(rec.text || '', printWidth);
@@ -509,7 +564,7 @@ export default function App() {
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(fromFontSize);
-      const wrappedFromLines = doc.splitTextToSize(fromAddress || '', printWidth);
+      const wrappedFromLines = doc.splitTextToSize(effectiveFrom || '', printWidth);
       const fromLineHeight = (fromFontSize * 1.25) / 72; // height in inches
 
       let currentFromY = fromHeaderY + fromLineHeight + 0.05;
@@ -692,36 +747,107 @@ export default function App() {
 
           {/* TAB 1: CARD EDITOR */}
           {activeTab === 'cards' && (
-            <div className="cards-grid">
-              {recipients.map((rec, idx) => (
-                <div key={rec.id} className="address-card" style={{ minHeight: '280px', display: 'flex', flexDirection: 'column' }}>
-                  <div className="card-header">
-                    <span className="card-index">Label #{idx + 1}</span>
+            <div>
+              {recipients.length > 0 && (
+                <div className="cards-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem', backgroundColor: 'var(--bg-card)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+                    <Truck size={16} className="text-secondary" />
+                    <span>Parcel Preference Bulk Action:</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <button 
-                      className="btn btn-danger btn-icon-only" 
-                      onClick={() => deleteRecipient(rec.id)}
-                      title="Delete Label"
+                      type="button"
+                      className="btn btn-secondary" 
+                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
+                      onClick={() => setAllRecipientsType('PC')}
                     >
-                      <Trash2 size={14} />
+                      <Truck size={14} /> Set All to Courier (PC)
+                    </button>
+                    <button 
+                      type="button"
+                      className="btn btn-secondary" 
+                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
+                      onClick={() => setAllRecipientsType('Post')}
+                    >
+                      <Mail size={14} style={{ color: '#d97706' }} /> Set All to Post
                     </button>
                   </div>
-                  
-                  <div className="form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <label>Label Content (Raw Text)</label>
-                    <textarea 
-                      style={{ flex: 1, minHeight: '180px', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.4' }}
-                      value={rec.text}
-                      onChange={(e) => handleRecipientChange(rec.id, e.target.value)}
-                      placeholder="Enter address details exactly..."
-                    />
-                  </div>
                 </div>
-              ))}
+              )}
 
-              {/* Add card placeholder */}
-              <div className="add-card-placeholder" onClick={addEmptyRecipient} style={{ minHeight: '280px' }}>
-                <Plus size={32} />
-                <span style={{ fontWeight: '600', fontSize: '0.95rem' }}>Add New Label</span>
+              <div className="cards-grid">
+                {recipients.map((rec, idx) => {
+                  const isPost = rec.type === 'Post';
+                  return (
+                    <div key={rec.id} className="address-card" style={{ minHeight: '290px', display: 'flex', flexDirection: 'column' }}>
+                      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span className="card-index">Label #{idx + 1}</span>
+                          <span className={`badge ${isPost ? 'badge-post' : 'badge-pc'}`}>
+                            {isPost ? '📮 Post' : '🚚 Courier (PC)'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <div className="parcel-toggle-group">
+                            <button
+                              type="button"
+                              className={`parcel-btn ${!isPost ? 'active-pc' : ''}`}
+                              onClick={() => handleRecipientTypeChange(rec.id, 'PC')}
+                              title="Courier / PC Option"
+                            >
+                              <Truck size={12} />
+                              PC
+                            </button>
+                            <button
+                              type="button"
+                              className={`parcel-btn ${isPost ? 'active-post' : ''}`}
+                              onClick={() => handleRecipientTypeChange(rec.id, 'Post')}
+                              title="Post Option (Post FROM address + Contractor ID)"
+                            >
+                              <Mail size={12} />
+                              Post
+                            </button>
+                          </div>
+                          <button 
+                            className="btn btn-danger btn-icon-only" 
+                            onClick={() => deleteRecipient(rec.id)}
+                            title="Delete Label"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {isPost && contractorId && (
+                        <div style={{ fontSize: '0.75rem', color: '#d97706', backgroundColor: 'var(--bg-input)', padding: '0.35rem 0.6rem', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px dashed #d97706' }}>
+                          <span style={{ fontWeight: '700', fontFamily: 'monospace' }}>{contractorId}</span>
+                          <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>(Printed Top Right)</span>
+                        </div>
+                      )}
+                      
+                      <div className="form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column', marginTop: '0.25rem' }}>
+                        <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Label Content (Raw Text)</span>
+                          <span style={{ fontSize: '0.75rem', color: isPost ? '#d97706' : 'var(--primary)', fontWeight: '600' }}>
+                            FROM: {isPost ? 'Post Sender' : 'Standard Sender'}
+                          </span>
+                        </label>
+                        <textarea 
+                          style={{ flex: 1, minHeight: '170px', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.4' }}
+                          value={rec.text}
+                          onChange={(e) => handleRecipientChange(rec.id, e.target.value)}
+                          placeholder="Enter address details exactly..."
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Add card placeholder */}
+                <div className="add-card-placeholder" onClick={addEmptyRecipient} style={{ minHeight: '290px' }}>
+                  <Plus size={32} />
+                  <span style={{ fontWeight: '600', fontSize: '0.95rem' }}>Add New Label</span>
+                </div>
               </div>
             </div>
           )}
@@ -760,6 +886,8 @@ export default function App() {
                   
                   <div className="labels-sequence-container">
                     {recipients.map((rec, idx) => {
+                      const isPost = rec.type === 'Post';
+                      const effectiveFrom = isPost ? postFromAddress : fromAddress;
                       const barcodeValue = `FASHION-${rec.id.toUpperCase()}`;
                       
                       const wrapperStyle = {
@@ -819,12 +947,30 @@ export default function App() {
 
                       return (
                         <div key={rec.id} className="label-preview-page">
-                          <div className="page-indicator">Label {idx + 1} of {pagesCount}</div>
+                          <div className="page-indicator">
+                            Label {idx + 1} of {pagesCount} {isPost ? '• 📮 Post' : '• 🚚 Courier (PC)'}
+                          </div>
                           <div style={wrapperStyle}>
                             <div style={labelStyle}>
                               {/* TO Section (Top 3 inches) */}
                               <div style={toSectionStyle}>
-                                <div style={{ fontWeight: 'bold', fontSize: `${toFontSize + 2}pt`, marginBottom: '4px' }}>TO:</div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', marginBottom: '4px' }}>
+                                  <div style={{ fontWeight: 'bold', fontSize: `${toFontSize + 2}pt` }}>TO:</div>
+                                  {isPost && contractorId && contractorId.trim() && (
+                                    <div style={{ 
+                                      fontWeight: 'bold', 
+                                      fontSize: `${toFontSize - 1}pt`, 
+                                      color: '#000', 
+                                      textAlign: 'right', 
+                                      border: '1.5px solid #000', 
+                                      padding: '1px 6px', 
+                                      borderRadius: '3px',
+                                      backgroundColor: '#ffffff'
+                                    }}>
+                                      {contractorId.trim()}
+                                    </div>
+                                  )}
+                                </div>
                                 <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-sans)' }}>{rec.text}</div>
                               </div>
                               
@@ -839,7 +985,7 @@ export default function App() {
                                     <img src={logoUrl} alt="Logo" style={{ height: `${logoSize}in`, maxWidth: `${logoSize * 3}in`, objectFit: 'contain' }} />
                                   )}
                                 </div>
-                                <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-sans)' }}>{fromAddress}</div>
+                                <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-sans)' }}>{effectiveFrom}</div>
                                 
                                 {/* Mock Barcode inside Bottom half */}
                                 {showBarcode && (
@@ -894,19 +1040,56 @@ export default function App() {
               <div className="panel-section">
                 <h2 className="section-title">
                   <Settings size={18} className="text-secondary" />
-                  Global Shipping Info
+                  Sender & Courier Info Settings
                 </h2>
-                <div className="form-group">
-                  <label>Stable Sender Address (FROM)</label>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                  <div className="form-group">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '700' }}>
+                      <Truck size={15} className="text-secondary" /> Courier / PC Sender Address (FROM)
+                    </label>
+                    <p className="help-text" style={{ marginBottom: '0.5rem' }}>
+                      Appears on the bottom half of labels set to <strong>Courier (PC)</strong>.
+                    </p>
+                    <textarea 
+                      rows={6}
+                      style={{ fontFamily: 'monospace', fontSize: '0.9rem', lineHeight: '1.4' }}
+                      value={fromAddress} 
+                      onChange={(e) => setFromAddress(e.target.value)}
+                      placeholder="From,&#10;Your Company Name&#10;Street Details&#10;Phone: XXXXXXXXXX"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '700' }}>
+                      <Mail size={15} style={{ color: '#d97706' }} /> Post Sender Address (FROM)
+                    </label>
+                    <p className="help-text" style={{ marginBottom: '0.5rem' }}>
+                      Appears on the bottom half of labels set to <strong>Post</strong>.
+                    </p>
+                    <textarea 
+                      rows={6}
+                      style={{ fontFamily: 'monospace', fontSize: '0.9rem', lineHeight: '1.4' }}
+                      value={postFromAddress} 
+                      onChange={(e) => setPostFromAddress(e.target.value)}
+                      placeholder="From,&#10;Postal Sender Address&#10;Street Details&#10;Phone: XXXXXXXXXX"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '700' }}>
+                    <Package size={15} style={{ color: '#d97706' }} /> Contractor ID / License No (for Post Labels)
+                  </label>
                   <p className="help-text" style={{ marginBottom: '0.5rem' }}>
-                    This address is stable and will appear on the bottom half of every sequential printed label.
+                    This Contractor ID will automatically print on the <strong>Top Right Side</strong> of Post address labels.
                   </p>
-                  <textarea 
-                    rows={6}
-                    style={{ fontFamily: 'monospace', fontSize: '0.9rem', lineHeight: '1.4' }}
-                    value={fromAddress} 
-                    onChange={(e) => setFromAddress(e.target.value)}
-                    placeholder="From,&#10;Your Company Name&#10;Street Details&#10;Phone: XXXXXXXXXX"
+                  <input 
+                    type="text"
+                    style={{ width: '100%', padding: '0.55rem 0.75rem', fontFamily: 'monospace', fontSize: '0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                    value={contractorId}
+                    onChange={(e) => setContractorId(e.target.value)}
+                    placeholder="e.g. Contractor ID: 123456 or Permit No: 98765"
                   />
                 </div>
               </div>
@@ -1447,6 +1630,8 @@ export default function App() {
           ===================================================== */}
       <div id="print-labels-container" aria-hidden="true">
         {recipients.map((rec) => {
+          const isPost = rec.type === 'Post';
+          const effectiveFrom = isPost ? postFromAddress : fromAddress;
           const barcodePattern = [1,2,1,3,1,2,3,1,1,2,1,3,2,1,1,3,1,2,1,2,3,1,2,1,1,3,2,1,2,1,3,1,1,2,1];
           const barcodeValue = `FASHION-${rec.id.toUpperCase()}`;
 
@@ -1478,7 +1663,22 @@ export default function App() {
                 className="pl-to"
                 style={{ padding: marginIn }}
               >
-                <span className="pl-section-title" style={{ fontSize: toTitlePt }}>TO:</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', marginBottom: '4px' }}>
+                  <span className="pl-section-title" style={{ fontSize: toTitlePt }}>TO:</span>
+                  {isPost && contractorId && contractorId.trim() && (
+                    <span style={{
+                      fontSize: `${toFontSize - 1}pt`,
+                      fontWeight: 'bold',
+                      border: '1.5px solid #000',
+                      padding: '1px 5px',
+                      borderRadius: '2px',
+                      textAlign: 'right',
+                      marginLeft: 'auto'
+                    }}>
+                      {contractorId.trim()}
+                    </span>
+                  )}
+                </div>
                 <div className="pl-text" style={{ fontSize: toFontPt, lineHeight: 1.35, fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap' }}>{(rec.text || '').trim()}</div>
               </div>
 
@@ -1499,7 +1699,7 @@ export default function App() {
                     <img src={logoUrl} alt="Logo" style={{ height: `${logoSize}in`, maxWidth: `${logoSize * 3}in`, objectFit: 'contain' }} />
                   )}
                 </div>
-                <div className="pl-text" style={{ fontSize: fromFontPt, lineHeight: 1.35, fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap' }}>{(fromAddress || '').trim()}</div>
+                <div className="pl-text" style={{ fontSize: fromFontPt, lineHeight: 1.35, fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap' }}>{(effectiveFrom || '').trim()}</div>
 
                 {showBarcode && (
                   <div className="pl-barcode-wrap">
